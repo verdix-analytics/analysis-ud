@@ -1,0 +1,126 @@
+import os
+import requests
+import psycopg2
+from dotenv import load_dotenv
+
+load_dotenv()
+
+API_KEY = os.getenv("TWELVEDATA_API_KEY")
+SYMBOL = os.getenv("SYMBOL", "BTC/USD")
+INTERVAL = os.getenv("INTERVAL", "1min")
+OUTPUTSIZE = int(os.getenv("OUTPUTSIZE", 1440))
+
+DB_HOST = os.getenv("DB_HOST", "postgres")
+DB_NAME = os.getenv("DB_NAME", "cs50db")
+DB_USER = os.getenv("DB_USER", "localadmin")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "localpass")
+
+
+def main():
+    if not API_KEY:
+        raise ValueError("TWELVEDATA_API_KEY is not set")
+
+    url = (
+        f"https://api.twelvedata.com/time_series"
+        f"?symbol={SYMBOL}"
+        f"&interval={INTERVAL}"
+        f"&outputsize={OUTPUTSIZE}"
+        f"&apikey={API_KEY}"
+        f"&timezone=UTC"
+    )
+
+    print("Requesting data from Twelve Data...")
+    print("URL:", url.replace(API_KEY, "HIDDEN_API_KEY"))
+
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+
+    print("API response status:", data.get("status"))
+    print("API response keys:", list(data.keys()))
+
+    if data.get("status") == "error":
+        print("API error message:", data.get("message"))
+        raise SystemExit("Twelve Data API returned an error.")
+
+    values = data.get("values", [])
+    print("Rows fetched from API:", len(values))
+
+    if not values:
+        raise SystemExit("No data returned from API.")
+
+    conn = psycopg2.connect(
+        host=DB_HOST,
+        database=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD
+    )
+
+    cur = conn.cursor()
+
+    print("Truncating stock table...")
+    cur.execute("TRUNCATE TABLE stock;")
+
+    inserted = 0
+
+    for row in reversed(values):
+        ts = row["datetime"]
+        open_price = float(row["open"])
+        high = float(row["high"])
+        low = float(row["low"])
+        close = float(row["close"])
+
+        cur.execute(
+            """
+            INSERT INTO stock (
+                stock_name, ts, open, high, low, close, volume
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (stock_name, ts)
+            DO NOTHING;
+            """,
+            (
+                SYMBOL,
+                ts,
+                open_price,
+                high,
+                low,
+                close,
+                None
+            )
+        )
+
+        inserted += 1
+
+    conn.commit()
+
+    cur.execute(
+        """
+        SELECT
+            MAX(stock_name) AS stock_name_val,
+            MIN(ts) AS start_time_val,
+            MAX(ts) AS end_time_val,
+            ROUND(EXTRACT(EPOCH FROM (MAX(ts) - MIN(ts))) / 3600.0, 2) AS hours_span_val,
+            COUNT(*) AS row_count_val
+        FROM stock;
+        """
+    )
+
+    result = cur.fetchone()
+
+    print("\n=== Validation result ===")
+    print("stock_name_val :", result[0])
+    print("start_time_val :", result[1])
+    print("end_time_val   :", result[2])
+    print("hours_span_val :", result[3])
+    print("row_count_val  :", result[4])
+
+    cur.close()
+    conn.close()
+
+    print("\nInserted rows into database:", inserted)
+    print("Data inserted successfully")
+
+
+if __name__ == "__main__":
+    main()

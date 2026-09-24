@@ -1,0 +1,23 @@
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing and Coverage
+.pytest_cache/
+.coverage
+.coveragerc
+tests/
+TestData/
+
+# Git metadata
+.git
+.gitignore
+
+# Docker files (Optional, prevents the Dockerfile itself from being copied in)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Environment files
+.env

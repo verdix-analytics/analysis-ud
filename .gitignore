@@ -1,0 +1,8 @@
+.vs
+.pytest_cache
+.coveragerc
+*/__pycache__
+__init__.py 
+*.cpython*
+.env
+certs/

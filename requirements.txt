@@ -1,0 +1,14 @@
+confluent_kafka==2.13.2
+joblib==1.5.3
+numpy==2.4.4
+pandas==3.0.2
+psycopg2_binary==2.9.11
+pydantic==2.13.1
+pyharmonics==1.5.3
+pytest==9.0.2
+python-dotenv==1.2.2
+redis==7.4.0
+Requests==2.33.1
+scikit_learn==1.8.0
+websockets==10.4
+yfinance==0.2.58

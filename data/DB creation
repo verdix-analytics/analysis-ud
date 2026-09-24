@@ -1,0 +1,84 @@
+-- =========================================
+-- PostgreSQL + TimescaleDB initialization
+-- =========================================
+
+-- 1) Enable TimescaleDB
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+-- =========================================
+-- 2) Stock table
+-- Stores raw OHLCV market data from Twelve Data
+-- =========================================
+CREATE TABLE IF NOT EXISTS stock (
+    id BIGSERIAL PRIMARY KEY,
+    stock_name VARCHAR(50) NOT NULL,
+    ts TIMESTAMP NOT NULL,
+    open NUMERIC(18,8) NOT NULL,
+    high NUMERIC(18,8) NOT NULL,
+    low NUMERIC(18,8) NOT NULL,
+    close NUMERIC(18,8) NOT NULL,
+    volume NUMERIC(20,8),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Prevent duplicate rows for same stock and timestamp
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'unique_stock_name_ts'
+    ) THEN
+        ALTER TABLE stock
+        ADD CONSTRAINT unique_stock_name_ts UNIQUE (stock_name, ts);
+    END IF;
+END $$;
+
+-- Index for faster query
+CREATE INDEX IF NOT EXISTS idx_stock_name_ts
+ON stock (stock_name, ts DESC);
+
+-- Convert to hypertable
+SELECT create_hypertable('stock', 'ts', if_not_exists => TRUE);
+
+-- =========================================
+-- 3) Stock analysis table
+-- =========================================
+CREATE TABLE IF NOT EXISTS stock_analysis (
+    id BIGSERIAL PRIMARY KEY,
+    stock_name VARCHAR(50) NOT NULL,
+    ts TIMESTAMP NOT NULL,
+
+    chart_pattern_found VARCHAR(100),
+    candlestick_pattern_found VARCHAR(100),
+    harmonic_pattern_found VARCHAR(100),
+
+    pre_trend_analysis_found TEXT,
+    post_trend_analysis_found TEXT,
+
+    technical_context_score NUMERIC(10,4),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Prevent duplicate analysis rows for same stock and timestamp
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'unique_stock_analysis_name_ts'
+    ) THEN
+        ALTER TABLE stock_analysis
+        ADD CONSTRAINT unique_stock_analysis_name_ts UNIQUE (stock_name, ts);
+    END IF;
+END $$;
+
+-- Index for faster query
+CREATE INDEX IF NOT EXISTS idx_stock_analysis_name_ts
+ON stock_analysis (stock_name, ts DESC);
+
+-- Convert to hypertable
+SELECT create_hypertable('stock_analysis', 'ts', if_not_exists => TRUE);
+
+
